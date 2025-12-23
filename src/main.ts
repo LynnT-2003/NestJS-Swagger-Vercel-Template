@@ -24,9 +24,9 @@ async function bootstrap() {
 
   // Swagger Configuration
   const config = new DocumentBuilder()
-    .setTitle('EasyDeal Backend API')
+    .setTitle('NestJS API Template')
     .setDescription(
-      'API documentation for EasyDeal Backend - Firebase Authentication & User Management',
+      'API documentation for NestJS API Template - Firebase Authentication & User Management',
     )
     .setVersion('1.0')
     .addBearerAuth(
@@ -40,8 +40,6 @@ async function bootstrap() {
       },
       'JWT-auth', // This name here is important for matching up with @ApiBearerAuth() in your controller!
     )
-    .addTag('auth', 'Authentication endpoints')
-    .addTag('user', 'User management endpoints')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
