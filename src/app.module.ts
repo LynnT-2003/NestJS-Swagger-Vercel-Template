@@ -2,37 +2,72 @@ import { Logger, Module, OnModuleInit } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule, InjectConnection } from '@nestjs/mongoose';
 import { Connection } from 'mongoose';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+
+import { AuthModule } from './auth/auth.module';
+import { UserModule } from './user/user.module';
+import { JwtGuard } from './common/guards/jwt.guard';
+import { RolesGuard } from './common/guards/roles.guard';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { loadEnvConfigs } from './configs/env.config';
 import { buildMongoUri } from './configs/mongo-uri-builder';
-import { DB_CONNECTION_NAMES } from './configs/db-connection-names';
 
 @Module({
   imports: [
+    // ─── Config ────────────────────────────────────────────────────────────────
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
       load: [loadEnvConfigs],
     }),
+
+    // ─── Database ──────────────────────────────────────────────────────────────
     MongooseModule.forRootAsync({
-      connectionName: DB_CONNECTION_NAMES.APP,
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         uri: buildMongoUri(configService.get('databaseConfig')!),
       }),
     }),
+
+    // ─── Feature Modules ───────────────────────────────────────────────────────
+    AuthModule,
+    UserModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    // ─── Global Guards ─────────────────────────────────────────────────────────
+    // JwtGuard protects all routes by default — use @Public() to opt out
+    {
+      provide: APP_GUARD,
+      useClass: JwtGuard,
+    },
+    // RolesGuard runs after JwtGuard — req.user is already populated
+    {
+      provide: APP_GUARD,
+      useClass: RolesGuard,
+    },
+
+    // ─── Global Filter ─────────────────────────────────────────────────────────
+    // Registered here via DI so guards/services can be injected if needed later
+    {
+      provide: APP_FILTER,
+      useClass: HttpExceptionFilter,
+    },
+
+    // ─── Global Interceptor ────────────────────────────────────────────────────
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: TransformInterceptor,
+    },
+  ],
 })
 export class AppModule implements OnModuleInit {
   private readonly logger = new Logger(AppModule.name);
 
   constructor(
-    @InjectConnection(DB_CONNECTION_NAMES.APP)
+    @InjectConnection()
     private readonly dbConnection: Connection,
-  ) { }
+  ) {}
 
   onModuleInit() {
     this.dbConnection.on('connected', () => {
