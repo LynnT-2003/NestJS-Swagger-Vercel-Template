@@ -7,7 +7,7 @@ Production-ready authentication boilerplate built on NestJS, MongoDB, and Passpo
 | Framework      | NestJS 11                                    |
 | Language       | TypeScript 5                                 |
 | Database       | MongoDB via Mongoose                         |
-| Authentication | Passport.js (local + Google OAuth 2.0 + LINE Login + JWT) |
+| Authentication | Passport.js (local + Google, LINE, GitHub, Discord, Microsoft OAuth + JWT) |
 | Token Strategy | JWT access token (15m) + refresh token (30d) |
 | Validation     | class-validator + class-transformer          |
 | API Docs       | Swagger (OpenAPI 3.0)                        |
@@ -21,6 +21,7 @@ Production-ready authentication boilerplate built on NestJS, MongoDB, and Passpo
 - [MongoDB Atlas Setup](#mongodb-atlas-setup)
 - [Google OAuth Setup](#google-oauth-setup)
 - [LINE Login Setup](#line-login-setup)
+- [GitHub, Discord, and Microsoft OAuth](#github-discord-and-microsoft-oauth)
 - [Environment Variables](#environment-variables)
 - [Vercel Deployment](#vercel-deployment)
 - [Architecture](#architecture)
@@ -43,7 +44,7 @@ npm install
 # 2. Copy environment file
 cp .env.example .env
 
-# 3. Fill in .env (see sections below for MongoDB, Google OAuth, and LINE Login)
+# 3. Fill in .env (see sections below for MongoDB and OAuth providers)
 
 # 4. Run
 npm run start:dev
@@ -221,6 +222,22 @@ LINE Login uses OAuth 2.0 (`passport-oauth2`) with the same user pipeline as Goo
 
 ---
 
+## GitHub, Discord, and Microsoft OAuth
+
+These providers use the same pipeline as Google: Passport validates the OAuth profile, `UserService.findOrCreateOAuthUser()` links or creates the user, then `AuthService.oauthLogin()` returns `{ user, tokens }`.
+
+| Provider | Passport strategy | Start | Callback |
+| --- | --- | --- | --- |
+| GitHub | `passport-github2` | `GET /api/auth/github` | `GET /api/auth/github/callback` |
+| Discord | `passport-discord` | `GET /api/auth/discord` | `GET /api/auth/discord/callback` |
+| Microsoft | `passport-microsoft` (`tenant: 'common'`, scope `user.read`) | `GET /api/auth/microsoft` | `GET /api/auth/microsoft/callback` |
+
+Register each app’s **redirect URI** to match the corresponding `*_CALLBACK_URL` in `.env` (including `http://localhost:8080/...` for local dev).
+
+**Detailed setup:** `documentation/GITHUB.md` (GitHub OAuth App), `documentation/DISCORD.MD` (Discord Developer Portal). For Microsoft, create an app registration in [Azure Entra ID](https://entra.microsoft.com/) (formerly Azure AD), add a **Web** redirect URI, and copy the Application (client) ID and client secret into `MICROSOFT_CLIENT_ID` / `MICROSOFT_CLIENT_SECRET`.
+
+---
+
 ## Environment Variables
 
 Copy `.env.example` to `.env` and fill in the values.
@@ -260,9 +277,24 @@ LINE_CHANNEL_ID=
 LINE_CHANNEL_SECRET=
 LINE_CALLBACK_URL=http://localhost:8080/api/auth/line/callback
 LINE_ACCOUNT_LINKING=strict
+
+# GitHub OAuth (see documentation/GITHUB.md)
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+GITHUB_CALLBACK_URL=http://localhost:8080/api/auth/github/callback
+
+# Discord OAuth (see documentation/DISCORD.MD)
+DISCORD_CLIENT_ID=
+DISCORD_CLIENT_SECRET=
+DISCORD_CALLBACK_URL=http://localhost:8080/api/auth/discord/callback
+
+# Microsoft OAuth (Azure Entra ID app registration)
+MICROSOFT_CLIENT_ID=
+MICROSOFT_CLIENT_SECRET=
+MICROSOFT_CALLBACK_URL=http://localhost:8080/api/auth/microsoft/callback
 ```
 
-`ConfigModule` exposes `process.env` to Nest (e.g. `ConfigService` in strategies). Shared app config is assembled in `loadEnvConfigs()` in `src/configs/env.config.ts`; OAuth secrets for Google/LINE are read directly from the environment where needed.
+`ConfigModule` exposes `process.env` to Nest (e.g. `ConfigService` in strategies). Shared app config is assembled in `loadEnvConfigs()` in `src/configs/env.config.ts`; OAuth secrets for these providers are read directly from the environment where needed (see `src/auth/strategies/*.strategy.ts`).
 
 ---
 
@@ -279,6 +311,9 @@ In your Vercel project → **Settings** → **Environment Variables**, add every
 | `ALLOWED_ORIGINS` | Your frontend domain(s) |
 | `GOOGLE_CALLBACK_URL` | `https://your-app.vercel.app/api/auth/google/callback` |
 | `LINE_CALLBACK_URL` | `https://your-app.vercel.app/api/auth/line/callback` |
+| `GITHUB_CALLBACK_URL` | `https://your-app.vercel.app/api/auth/github/callback` |
+| `DISCORD_CALLBACK_URL` | `https://your-app.vercel.app/api/auth/discord/callback` |
+| `MICROSOFT_CALLBACK_URL` | `https://your-app.vercel.app/api/auth/microsoft/callback` |
 
 ### 2. Push and deploy
 
@@ -323,6 +358,9 @@ The repo includes `vercel.json` — push to your connected branch and Vercel dep
 │  │  LocalStrategy     │      │  UserEntity           │          │
 │  │  GoogleStrategy    │      └───────────┬───────────┘          │
 │  │  LineStrategy      │                  │                      │
+│  │  GithubStrategy    │                  │                      │
+│  │  DiscordStrategy   │                  │                      │
+│  │  MicrosoftStrategy │                  │                      │
 │  │  JwtStrategy       │                  │                      │
 │  └────────────────────┘                  │                      │
 │                                          ▼                      │
@@ -501,6 +539,27 @@ Client           AuthController    LineStrategy        UserService      AuthServ
   │◀──────────────────│ 200 { user, tokens }                │                │
 ```
 
+### GitHub, Discord, and Microsoft OAuth
+
+These flows follow the same shape as Google: redirect to the provider → user approves → callback with `code` → strategy `validate()` → `findOrCreateOAuthUser` → `oauthLogin`.
+
+```
+Client           AuthController    *Strategy           UserService      AuthService
+  │                   │                 │                   │                │
+  │ GET /api/auth/{github|discord|microsoft}             │                │
+  │──────────────────▶│                 │                   │                │
+  │◀──────────────────│ 302 → IdP       │                   │                │
+  │                   │                 │                   │                │
+  │ GET /api/auth/{...}/callback?code=...               │                │
+  │──────────────────▶│                 │                   │                │
+  │                   │────────────────▶│ validate(profile)│                │
+  │                   │                 │──────────────────▶│ findOrCreate   │
+  │                   │                 │◀──────────────────│ UserDocument   │
+  │                   │                 │ oauthLogin(user)  │                │
+  │                   │                 │──────────────────────────────────▶│
+  │◀──────────────────│ 200 { user, tokens }                │                │
+```
+
 ### Authenticated Request
 
 ```
@@ -596,7 +655,7 @@ users collection
 
 OAuthProvider subdocument
 ┌─────────────────────────────────────────────────────────┐
-│ provider          OAuthProviderType  'google' | 'line' | 'local' │
+│ provider          OAuthProviderType  google, line, github, discord, microsoft, local │
 │ providerId        string             unique per provider│
 │ accessToken       string | null                         │
 └─────────────────────────────────────────────────────────┘
@@ -653,6 +712,12 @@ All responses are wrapped by `TransformInterceptor`:
 | GET | `/api/auth/google/callback` | Public + GoogleCallbackGuard | — | OAuth callback |
 | GET | `/api/auth/line` | Public + LineGuard | — | Redirect to LINE |
 | GET | `/api/auth/line/callback` | Public + LineCallbackGuard | — | OAuth callback |
+| GET | `/api/auth/github` | Public + GithubGuard | — | Redirect to GitHub |
+| GET | `/api/auth/github/callback` | Public + GithubCallbackGuard | — | OAuth callback |
+| GET | `/api/auth/discord` | Public + DiscordGuard | — | Redirect to Discord |
+| GET | `/api/auth/discord/callback` | Public + DiscordCallbackGuard | — | OAuth callback |
+| GET | `/api/auth/microsoft` | Public + MicrosoftGuard | — | Redirect to Microsoft |
+| GET | `/api/auth/microsoft/callback` | Public + MicrosoftCallbackGuard | — | OAuth callback |
 
 ### User Endpoints
 
@@ -734,7 +799,7 @@ src/
 ├── common/
 │   ├── enums/
 │   │   ├── user-role.enum.ts            USER | ADMIN
-│   │   └── oauth-provider.enum.ts       GOOGLE | LINE | LOCAL
+│   │   └── oauth-provider.enum.ts       GOOGLE, LINE, GITHUB, DISCORD, MICROSOFT, LOCAL
 │   ├── interfaces/
 │   │   ├── user.interface.ts            IUser, IUserPublic, ICurrentUser
 │   │   └── auth.interface.ts            IJwtPayload, IAuthTokens, IAuthResponse
@@ -764,13 +829,24 @@ src/
 │   ├── strategies/
 │   │   ├── local.strategy.ts            Email + password validation
 │   │   ├── google.strategy.ts           OAuth 2.0 (Google)
-│   │   └── line.strategy.ts             OAuth 2.0 (LINE; StatelessStore for serverless)
+│   │   ├── line.strategy.ts             OAuth 2.0 (LINE; StatelessStore for serverless)
+│   │   ├── github.strategy.ts           passport-github2
+│   │   ├── discord.strategy.ts          passport-discord
+│   │   └── microsoft.strategy.ts        passport-microsoft
 │   ├── guards/
 │   │   ├── local.guard.ts
 │   │   ├── google.guard.ts
 │   │   ├── google-callback.guard.ts
 │   │   ├── line.guard.ts
-│   │   └── line-callback.guard.ts
+│   │   ├── line-callback.guard.ts
+│   │   ├── github.guard.ts
+│   │   ├── github-callback.guard.ts
+│   │   ├── discord.guard.ts
+│   │   ├── discord-callback.guard.ts
+│   │   ├── microsoft.guard.ts
+│   │   └── microsoft-callback.guard.ts
+│   ├── types/
+│   │   └── passport-microsoft.d.ts      Module typings for passport-microsoft
 │   ├── auth.service.ts
 │   ├── auth.controller.ts
 │   └── auth.module.ts
