@@ -10,8 +10,8 @@ import { JwtGuard } from './common/guards/jwt.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
-import { loadEnvConfigs } from './configs/env.config';
-import { buildMongoUri } from './configs/mongo-uri-builder';
+import { loadEnvConfigs } from './common/config/env.config';
+import { buildMongoUri } from './common/config/mongo-uri-builder';
 
 @Module({
   imports: [
@@ -67,7 +67,7 @@ export class AppModule implements OnModuleInit {
   constructor(
     @InjectConnection()
     private readonly dbConnection: Connection,
-  ) {}
+  ) { }
 
   onModuleInit() {
     this.dbConnection.on('connected', () => {

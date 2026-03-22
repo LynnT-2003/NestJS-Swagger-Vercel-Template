@@ -8,6 +8,7 @@ export interface IOAuthProvider {
     provider: OAuthProviderType;
     providerId: string;
     accessToken: string | null;
+    connectedAt: Date;
 }
 
 export interface IRefreshToken {
@@ -41,7 +42,8 @@ export interface IUserPublic {
     avatar: string | null;
     role: UserRole;
     isEmailVerified: boolean;
-    providers: Pick<IOAuthProvider, 'provider'>[]; // only expose provider name, not tokens
+    providers: OAuthProviderType[];
+    providerDetails: Pick<IOAuthProvider, 'provider' | 'connectedAt'>[];
     createdAt: Date;
     updatedAt: Date;
 }

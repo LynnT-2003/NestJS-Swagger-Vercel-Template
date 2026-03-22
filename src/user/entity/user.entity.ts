@@ -19,6 +19,9 @@ export class OAuthProvider {
 
     @Prop({ type: String, default: null })
     accessToken: string | null;
+
+    @Prop({ required: true, default: () => new Date() })
+    connectedAt: Date;
 }
 
 export const OAuthProviderSchema = SchemaFactory.createForClass(OAuthProvider);

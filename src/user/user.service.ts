@@ -1,7 +1,7 @@
 import {
-    ConflictException,
-    Injectable,
-    NotFoundException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -16,207 +16,214 @@ import { OAuthProviderType } from '../common/enums/oauth-provider.enum';
 
 @Injectable()
 export class UserService implements IUserService {
-    constructor(
-        @InjectModel(User.name)
-        private readonly userModel: Model<UserDocument>,
-    ) { }
+  constructor(
+    @InjectModel(User.name)
+    private readonly userModel: Model<UserDocument>,
+  ) { }
 
-    // ─── Find By Id ─────────────────────────────────────────────────────────────
+  // ─── Find By Id ─────────────────────────────────────────────────────────────
 
-    async findById(id: string | Types.ObjectId): Promise<UserDocument | null> {
-        return this.userModel.findById(id).exec();
+  async findById(id: string | Types.ObjectId): Promise<UserDocument | null> {
+    return this.userModel.findById(id).exec();
+  }
+
+  // ─── Find By Email ───────────────────────────────────────────────────────────
+
+  async findByEmail(email: string): Promise<UserDocument | null> {
+    return this.userModel
+      .findOne({ email: email.toLowerCase().trim() })
+      .select('+password') // password is excluded by default
+      .exec();
+  }
+
+  // ─── Create Local User ───────────────────────────────────────────────────────
+
+  async createLocalUser(
+    email: string,
+    hashedPassword: string,
+    displayName: string,
+  ): Promise<UserDocument> {
+    const existing = await this.userModel.findOne({ email: email.toLowerCase().trim() });
+
+    if (existing) {
+      throw new ConflictException('An account with this email already exists');
     }
 
-    // ─── Find By Email ───────────────────────────────────────────────────────────
+    const user = new this.userModel({
+      email: email.toLowerCase().trim(),
+      password: hashedPassword,
+      displayName,
+      providers: [
+        {
+          provider: OAuthProviderType.LOCAL,
+          providerId: email.toLowerCase().trim(),
+          accessToken: null,
+          connectedAt: new Date(),
+        },
+      ],
+    });
 
-    async findByEmail(email: string): Promise<UserDocument | null> {
-        return this.userModel
-            .findOne({ email: email.toLowerCase().trim() })
-            .select('+password') // password is excluded by default
-            .exec();
+    return user.save();
+  }
+
+  // ─── Find Or Create OAuth User ───────────────────────────────────────────────
+
+  async findOrCreateOAuthUser(dto: OAuthUserDto): Promise<UserDocument> {
+    // 1. Look up by provider + providerId (compound index hit)
+    const byProvider = await this.userModel.findOne({
+      providers: {
+        $elemMatch: {
+          provider: dto.provider,
+          providerId: dto.providerId,
+        },
+      },
+    });
+
+    if (byProvider) {
+      // Update accessToken in case it rotated
+      await this.userModel.updateOne(
+        {
+          _id: byProvider._id,
+          'providers.provider': dto.provider,
+          'providers.providerId': dto.providerId,
+        },
+        { $set: { 'providers.$.accessToken': dto.accessToken } },
+      );
+      return byProvider;
     }
 
-    // ─── Create Local User ───────────────────────────────────────────────────────
+    // 2. Same email exists — link the new provider to the existing account
+    if (dto.email) {
+      const byEmail = await this.userModel.findOne({
+        email: dto.email.toLowerCase().trim(),
+      });
 
-    async createLocalUser(
-        email: string,
-        hashedPassword: string,
-        displayName: string,
-    ): Promise<UserDocument> {
-        const existing = await this.userModel.findOne({ email: email.toLowerCase().trim() });
-
-        if (existing) {
-            throw new ConflictException('An account with this email already exists');
-        }
-
-        const user = new this.userModel({
-            email: email.toLowerCase().trim(),
-            password: hashedPassword,
-            displayName,
-            providers: [
-                {
-                    provider: OAuthProviderType.LOCAL,
-                    providerId: email.toLowerCase().trim(),
-                    accessToken: null,
-                },
-            ],
+      if (byEmail) {
+        byEmail.providers.push({
+          provider: dto.provider,
+          providerId: dto.providerId,
+          accessToken: dto.accessToken,
+          connectedAt: new Date(),
         });
-
-        return user.save();
+        return byEmail.save();
+      }
     }
 
-    // ─── Find Or Create OAuth User ───────────────────────────────────────────────
+    // 3. Brand new user
+    const user = new this.userModel({
+      email: dto.email ? dto.email.toLowerCase().trim() : null,
+      displayName: dto.displayName,
+      avatar: dto.avatar,
+      providers: [
+        {
+          provider: dto.provider,
+          providerId: dto.providerId,
+          accessToken: dto.accessToken,
+          connectedAt: new Date(),
+        },
+      ],
+    });
 
-    async findOrCreateOAuthUser(dto: OAuthUserDto): Promise<UserDocument> {
-        // 1. Look up by provider + providerId (compound index hit)
-        const byProvider = await this.userModel.findOne({
-            providers: {
-                $elemMatch: {
-                    provider: dto.provider,
-                    providerId: dto.providerId,
-                },
-            },
-        });
+    return user.save();
+  }
 
-        if (byProvider) {
-            // Update accessToken in case it rotated
-            await this.userModel.updateOne(
-                {
-                    _id: byProvider._id,
-                    'providers.provider': dto.provider,
-                    'providers.providerId': dto.providerId,
-                },
-                { $set: { 'providers.$.accessToken': dto.accessToken } },
-            );
-            return byProvider;
-        }
+  // ─── Update User ─────────────────────────────────────────────────────────────
 
-        // 2. Same email exists — link the new provider to the existing account
-        if (dto.email) {
-            const byEmail = await this.userModel.findOne({
-                email: dto.email.toLowerCase().trim(),
-            });
+  async updateUser(
+    id: string | Types.ObjectId,
+    dto: UpdateUserDto,
+  ): Promise<IUserPublic> {
+    const user = await this.userModel
+      .findByIdAndUpdate(id, { $set: dto }, { new: true })
+      .exec();
 
-            if (byEmail) {
-                byEmail.providers.push({
-                    provider: dto.provider,
-                    providerId: dto.providerId,
-                    accessToken: dto.accessToken,
-                });
-                return byEmail.save();
-            }
-        }
-
-        // 3. Brand new user
-        const user = new this.userModel({
-            email: dto.email ? dto.email.toLowerCase().trim() : null,
-            displayName: dto.displayName,
-            avatar: dto.avatar,
-            providers: [
-                {
-                    provider: dto.provider,
-                    providerId: dto.providerId,
-                    accessToken: dto.accessToken,
-                },
-            ],
-        });
-
-        return user.save();
+    if (!user) {
+      throw new NotFoundException('User not found');
     }
 
-    // ─── Update User ─────────────────────────────────────────────────────────────
+    return this.toPublic(user);
+  }
 
-    async updateUser(
-        id: string | Types.ObjectId,
-        dto: UpdateUserDto,
-    ): Promise<IUserPublic> {
-        const user = await this.userModel
-            .findByIdAndUpdate(id, { $set: dto }, { new: true })
-            .exec();
+  // ─── Refresh Token Management ────────────────────────────────────────────────
 
-        if (!user) {
-            throw new NotFoundException('User not found');
-        }
+  async saveRefreshToken(
+    id: string | Types.ObjectId,
+    hashedToken: string,
+    expiresAt: Date,
+  ): Promise<void> {
+    // Prune expired tokens first — MongoDB does not allow $push and $pull
+    // on the same field in a single operation (throws conflict error code 40)
+    await this.userModel.updateOne(
+      { _id: id },
+      { $pull: { refreshTokens: { expiresAt: { $lt: new Date() } } } },
+    );
 
-        return this.toPublic(user);
+    await this.userModel.updateOne(
+      { _id: id },
+      { $push: { refreshTokens: { token: hashedToken, createdAt: new Date(), expiresAt } } },
+    );
+  }
+
+  async removeRefreshToken(
+    id: string | Types.ObjectId,
+    hashedToken: string,
+  ): Promise<void> {
+    await this.userModel.updateOne(
+      { _id: id },
+      { $pull: { refreshTokens: { token: hashedToken } } },
+    );
+  }
+
+  async removeAllRefreshTokens(id: string | Types.ObjectId): Promise<void> {
+    await this.userModel.updateOne(
+      { _id: id },
+      { $set: { refreshTokens: [] } },
+    );
+  }
+
+  // ─── Validate Refresh Token ──────────────────────────────────────────────────
+  // Not on the interface — called internally by auth.service.ts.
+  // Fetches the user with refreshTokens (+select) and compares hashes.
+
+  async findValidRefreshToken(
+    id: string | Types.ObjectId,
+    incomingToken: string,
+  ): Promise<UserDocument | null> {
+    const user = await this.userModel
+      .findById(id)
+      .select('+refreshTokens')
+      .exec();
+
+    if (!user) return null;
+
+    const now = new Date();
+
+    for (const stored of user.refreshTokens) {
+      if (stored.expiresAt < now) continue; // skip expired
+      const match = await bcrypt.compare(incomingToken, stored.token);
+      if (match) return user;
     }
 
-    // ─── Refresh Token Management ────────────────────────────────────────────────
+    return null;
+  }
 
-    async saveRefreshToken(
-        id: string | Types.ObjectId,
-        hashedToken: string,
-        expiresAt: Date,
-    ): Promise<void> {
-        // Prune expired tokens first — MongoDB does not allow $push and $pull
-        // on the same field in a single operation (throws conflict error code 40)
-        await this.userModel.updateOne(
-            { _id: id },
-            { $pull: { refreshTokens: { expiresAt: { $lt: new Date() } } } },
-        );
+  // ─── To Public ───────────────────────────────────────────────────────────────
 
-        await this.userModel.updateOne(
-            { _id: id },
-            { $push: { refreshTokens: { token: hashedToken, createdAt: new Date(), expiresAt } } },
-        );
-    }
-
-    async removeRefreshToken(
-        id: string | Types.ObjectId,
-        hashedToken: string,
-    ): Promise<void> {
-        await this.userModel.updateOne(
-            { _id: id },
-            { $pull: { refreshTokens: { token: hashedToken } } },
-        );
-    }
-
-    async removeAllRefreshTokens(id: string | Types.ObjectId): Promise<void> {
-        await this.userModel.updateOne(
-            { _id: id },
-            { $set: { refreshTokens: [] } },
-        );
-    }
-
-    // ─── Validate Refresh Token ──────────────────────────────────────────────────
-    // Not on the interface — called internally by auth.service.ts.
-    // Fetches the user with refreshTokens (+select) and compares hashes.
-
-    async findValidRefreshToken(
-        id: string | Types.ObjectId,
-        incomingToken: string,
-    ): Promise<UserDocument | null> {
-        const user = await this.userModel
-            .findById(id)
-            .select('+refreshTokens')
-            .exec();
-
-        if (!user) return null;
-
-        const now = new Date();
-
-        for (const stored of user.refreshTokens) {
-            if (stored.expiresAt < now) continue; // skip expired
-            const match = await bcrypt.compare(incomingToken, stored.token);
-            if (match) return user;
-        }
-
-        return null;
-    }
-
-    // ─── To Public ───────────────────────────────────────────────────────────────
-
-    toPublic(user: UserDocument): IUserPublic {
-        return {
-            _id: user._id,
-            email: user.email,
-            displayName: user.displayName,
-            avatar: user.avatar,
-            role: user.role,
-            isEmailVerified: user.isEmailVerified,
-            providers: user.providers.map(({ provider }) => ({ provider })),
-            createdAt: user.createdAt,
-            updatedAt: user.updatedAt,
-        };
-    }
+  toPublic(user: UserDocument): IUserPublic {
+    return {
+      _id: user._id,
+      email: user.email,
+      displayName: user.displayName,
+      avatar: user.avatar,
+      role: user.role,
+      isEmailVerified: user.isEmailVerified,
+      providers: user.providers.map(p => p.provider),
+      providerDetails: user.providers.map(p => ({
+        provider: p.provider,
+        connectedAt: p.connectedAt,
+      })),
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
+  }
 }
