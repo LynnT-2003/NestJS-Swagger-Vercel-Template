@@ -1,10 +1,20 @@
 # NestJS Clean Architecture & Multi-Provider Auth
 
-### Setup Production-Grade Backend with Swagger on Vercel in minutes
+<p align="center">
+  <a href="#quick-start">
+    <img src="./assets/swagger.png" alt="Swagger API Documentation Preview" width="800" />
+  </a>
+</p>
+
+<p align="center">
+    <em>Production-ready API with fully typed Swagger documentation and multi-provider auth</em>
+</p>
+
+### Stop rebuilding auth. Ship a production-ready backend in minutes.
 
 Most projects spend the first two weeks rebuilding the same authentication system
 
-Local email/password login, OAuth, token refresh, guards, schemas. Over and over again
+OAuth, token refresh, guards, schemas. Over and over again
 
 ![Google](https://img.shields.io/badge/Google-4285F4?style=for-the-badge&logo=google&logoColor=white)
 ![LINE](https://img.shields.io/badge/LINE-00C300?style=for-the-badge&logo=line&logoColor=white)
@@ -18,19 +28,99 @@ Local email/password login, OAuth, token refresh, guards, schemas. Over and over
 ![Vercel](https://img.shields.io/badge/Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)
 ![Swagger](https://img.shields.io/badge/Swagger-85EA2D?style=for-the-badge&logo=swagger&logoColor=black)
 
-Built with one goal: **never re-write auth again**
+This is a production-ready NestJS backend with:
+
+- Multi-provider OAuth (Google, LINE, GitHub, Discord, Microsoft)
+- JWT + refresh token rotation
+- Clean architecture (built to scale)
+- Swagger docs that never go out of sync
+
+Based on real-world SaaS needs. Built with one goal: **never re-write auth again**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                          CLIENT                                 │
+│              (Web App / Mobile App / Postman)                   │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │ HTTPS
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                        VERCEL EDGE                              │
+│                    (vercel.json routing)                        │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      NESTJS APPLICATION                         │
+│                                                                 │
+│  ┌─────────────┐   ┌──────────────┐   ┌─────────────────────┐ │
+│  │  Validation  │   │   JwtGuard   │   │   RolesGuard        │ │
+│  │  Pipe        │──▶│   (global)   │──▶│   (global)          │ │
+│  └─────────────┘   └──────────────┘   └─────────────────────┘ │
+│                            │                                    │
+│              ┌─────────────┴──────────────┐                    │
+│              ▼                            ▼                    │
+│  ┌───────────────────┐      ┌───────────────────────┐          │
+│  │   AuthModule       │      │     UserModule        │          │
+│  │                    │      │                       │          │
+│  │  AuthController    │      │  UserController       │          │
+│  │  AuthService       │─────▶│  UserService          │          │
+│  │  LocalStrategy     │      │  UserEntity           │          │
+│  │  GoogleStrategy    │      └───────────┬───────────┘          │
+│  │  LineStrategy      │                  │                      │
+│  │  GithubStrategy    │                  │                      │
+│  │  DiscordStrategy   │                  │                      │
+│  │  MicrosoftStrategy │                  │                      │
+│  │  JwtStrategy       │                  │                      │
+│  └────────────────────┘                  │                      │
+│                                          ▼                      │
+│                           ┌──────────────────────────┐          │
+│                           │        MongoDB            │          │
+│                           │   (users collection)      │          │
+│                           └──────────────────────────┘          │
+│                                                                 │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │  common/                                                  │  │
+│  │  enums · interfaces · decorators · guards · filters       │  │
+│  │  interceptors · pipes · strategies                        │  │
+│  └──────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🚀 Roadmap (Open-Source)
+
+Actively Maintained. Built in public. Production-first.
+
+1. Admin-User Multi-Provider Authentication
+2. Email Automation with Nodemailer and Brevo
+3. Payment Gateway (Stripe and Omise for Domestic)
+
+**Frontend Boilerplate**
+
+4. NextJS - NextAuth Production Architecture
+5. Reusable Tailwind UI Components + Framer Animations
+6. Over 20+ DaisyUI Themes with Automatic Dark Mode
+7. OpenGraph & Meta tags for SEO and Social Media Sharing
+
+**Admin Dashboard**
+
+8. Complete User Management and Analytics
+9. Auditing and Moderation for a Production SaaS
 
 ## What's included
 
-Production-ready authentication, structured by domain, fully typed, with strict boundaries across every layer.
+Production-ready authentication, structured by domain.
 
-Built on NestJS, MongoDB, and Passport.js. Every feature a real auth system needs, fully wired, consistent, and ready to extend.
+Fully typed, with strict boundaries across every layer. Ready to Scale
+
+Every feature a real auth system needs. Built on NestJS, MongoDB, and Passport.js.
 
 ### Vercel-native serverless — deploy free in minutes
 
 Built specifically for Vercel from day one. Not an afterthought. Not a wrapper.
 
-- Cached app instance — cold starts under 600ms
 - Stateless OAuth flows — no session storage needed
 - Exported handler — Vercel picks it up automatically
 - Push to main → live in 30 seconds
@@ -1077,3 +1167,28 @@ If no token is sent or the token is expired, JwtGuard returns `401 Unauthorized`
 6. Add `@ApiTags()` and `@ApiBearerAuth('JWT-auth')` for Swagger
 
 No changes needed to guards, strategies, or interceptors.
+
+---
+
+## Coming Soon ...
+
+Full-stack SaaS boilerplate built on top of this backend.
+
+Auth + Payments + Admin + Frontend. One Shot All-in-One Production.
+
+Stay tuned.
+
+### ☕ Support
+
+If this has saved you weeks of work:
+
+⭐ Star the repo
+
+🚀 Use it in production
+
+🧠 Share it with your team
+
+📍 Connect with me
+
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/lynn-thit-nyi-nyi/)
+[![Instagram](https://img.shields.io/badge/Instagram-E4405F?style=for-the-badge&logo=instagram&logoColor=white)](https://instagram.com/lynn.yuan_)
