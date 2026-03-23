@@ -1,16 +1,10 @@
 # NestJS Clean Architecture & Multi-Provider Auth
 
-<p align="center">
-  <a href="#quick-start">
-    <img src="./assets/swagger.png" alt="Swagger API Documentation Preview" width="800" />
-  </a>
-</p>
+<a href="#quick-start">
+  <img src="./assets/swagger.png" alt="Swagger API Documentation Preview" width="800" />
+</a>
 
-<p align="center">
-    <em>Production-ready API with fully typed Swagger documentation and multi-provider auth</em>
-</p>
-
-### Stop rebuilding auth. Ship a production-ready backend in minutes.
+## Stop rebuilding Auth. Ship in minutes.
 
 Most projects spend the first two weeks rebuilding the same authentication system
 
@@ -28,66 +22,16 @@ OAuth, token refresh, guards, schemas. Over and over again
 ![Vercel](https://img.shields.io/badge/Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)
 ![Swagger](https://img.shields.io/badge/Swagger-85EA2D?style=for-the-badge&logo=swagger&logoColor=black)
 
-This is a production-ready NestJS backend with:
+This is a production-ready boilerplate, following industry standards with:
 
 - Multi-provider OAuth (Google, LINE, GitHub, Discord, Microsoft)
 - JWT + refresh token rotation
 - Clean architecture (built to scale)
 - Swagger docs that never go out of sync
+- Based on real-world SaaS needs. 
 
-Based on real-world SaaS needs. Built with one goal: **never re-write auth again**
+Built with one goal: **never re-write auth again**
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                          CLIENT                                 │
-│              (Web App / Mobile App / Postman)                   │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │ HTTPS
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                        VERCEL EDGE                              │
-│                    (vercel.json routing)                        │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                      NESTJS APPLICATION                         │
-│                                                                 │
-│  ┌─────────────┐   ┌──────────────┐   ┌─────────────────────┐ │
-│  │  Validation  │   │   JwtGuard   │   │   RolesGuard        │ │
-│  │  Pipe        │──▶│   (global)   │──▶│   (global)          │ │
-│  └─────────────┘   └──────────────┘   └─────────────────────┘ │
-│                            │                                    │
-│              ┌─────────────┴──────────────┐                    │
-│              ▼                            ▼                    │
-│  ┌───────────────────┐      ┌───────────────────────┐          │
-│  │   AuthModule       │      │     UserModule        │          │
-│  │                    │      │                       │          │
-│  │  AuthController    │      │  UserController       │          │
-│  │  AuthService       │─────▶│  UserService          │          │
-│  │  LocalStrategy     │      │  UserEntity           │          │
-│  │  GoogleStrategy    │      └───────────┬───────────┘          │
-│  │  LineStrategy      │                  │                      │
-│  │  GithubStrategy    │                  │                      │
-│  │  DiscordStrategy   │                  │                      │
-│  │  MicrosoftStrategy │                  │                      │
-│  │  JwtStrategy       │                  │                      │
-│  └────────────────────┘                  │                      │
-│                                          ▼                      │
-│                           ┌──────────────────────────┐          │
-│                           │        MongoDB            │          │
-│                           │   (users collection)      │          │
-│                           └──────────────────────────┘          │
-│                                                                 │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │  common/                                                  │  │
-│  │  enums · interfaces · decorators · guards · filters       │  │
-│  │  interceptors · pipes · strategies                        │  │
-│  └──────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-```
-
----
 
 ## 🚀 Roadmap (Open-Source)
 
