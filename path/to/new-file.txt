@@ -1,1 +1,2 @@
-This is the new file created for the autopilot branch.
+This is an updated version of the new file created for the autopilot branch.
+It includes some additional information and maybe even some code snippets!
