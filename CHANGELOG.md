@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Prevented resending a verification email for users who are already verified.
 - Marked `POST /api/auth/resend-verification` as a Bearer-authenticated route in Swagger.
+- Send verification success email
 
 ---
 
